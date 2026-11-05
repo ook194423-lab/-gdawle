@@ -23,56 +23,69 @@ Thread(target=run_web).start()
 TOKEN = '9059288274:AAFMYLkHh9rk4EGSpW7v7LBa1rGEncEm3Lg'
 CHANNEL_ID = -1003713705463
 
-# بيانات الفحص المجاني (Sightengine API) أو يمكنك استخدام مفاتيح تجريبية مجانية
-API_USER = '700106778&api_secret=THw6tAtGMmjVg2grjKAoQtKZPiYWcoPT'
+# مفاتيح حسابك في Sightengine
+API_USER = '700106778'
 API_SECRET = 'THw6tAtGMmjVg2grjKAoQtKZPiYWcoPT'
 
 bot = telebot.TeleBot(TOKEN)
 
 
-def check_image_safety(photo_url):
-  """دالة برمجية تفحص الصورة وتحدد ما إذا كانت آمنة أم لا"""
+def check_image_safety_by_upload(file_path):
+  """دالة لفحص الصورة عبر تحميلها مباشرة للموقع وتحليلها"""
   try:
-    params = {
-        'url': photo_url,
-        'models': 'nudity-2.0,wad,offensive',
-        'api_user': API_USER,
-        'api_secret': API_SECRET,
-    }
-    response = requests.get(
-        'https://api.sightengine.com/1.0/check.json', params=params
-    )
-    output = response.json()
+    with open(file_path, 'rb') as image_file:
+      files = {'media': image_file}
+      data = {
+          'models': 'nudity-2.0,wad,offensive',
+          'api_user': API_USER,
+          'api_secret': API_SECRET,
+      }
+      response = requests.post(
+          'https://api.sightengine.com/1.0/check.json',
+          files=files,
+          data=data,
+      )
+      output = response.json()
 
-    if output['status'] == 'success':
-      nudity_safe = output.get('nudity', {}).get('safe', 1.0)
-      # إذا كانت نسبة الأمان أقل من الطبيعي، تعتبر الصورة مخالفة
-      if nudity_safe < 0.8:
-        return False
+      if output.get('status') == 'success':
+        # التحقق من نسبة العري أو المحتوى الحساس
+        nudity_safe = output.get('nudity', {}).get('safe', 1.0)
+        # إذا كانت نسبة الأمان أقل من 80%، نعتبر الصورة مخالفة وغير آمنة
+        if nudity_safe < 0.8:
+          return False
     return True
-  except Exception:
-    return True  # للسماح بمرور الصورة مؤقتاً في حال حدث ضغط بالاتترنت
+  except Exception as e:
+    print(f'Error in check: {e}')
+    return True
 
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
   try:
-    # الحصول على مسار الصورة المرسلة
+    # تحميل الصورة المؤقتة من سيرفرات تليجرام إلى جهاز البوت محلياً لفحصها
     file_info = bot.get_file(message.photo[-1].file_id)
-    photo_url = f'https://api.telegram.org/file/bot{TOKEN}/{file_info.file_path}'
+    downloaded_file = bot.download_file(file_info.file_path)
 
-    # فحص الصورة برمجياً
-    is_safe = check_image_safety(photo_url)
+    temp_path = 'temp_image.jpg'
+    with open(temp_path, 'wb') as new_file:
+      new_file.write(downloaded_file)
+
+    # فحص الصورة بالتنفيذ المباشر
+    is_safe = check_image_safety_by_upload(temp_path)
+
+    # حذف الملف المؤقت من الذاكرة
+    if os.path.exists(temp_path):
+      os.remove(temp_path)
 
     if not is_safe:
-      # إذا كانت غير لائقة: احذف رسالة المستخدم فوراً ولا تنشرها في القناة
+      # إذا كانت الصورة مخالفة: احذف رسالة المستخدم فوراً من الشات ولا تنشرها
       try:
         bot.delete_message(chat_id=message.chat.id, message_id=message.message_id)
       except Exception:
         pass
       return
 
-    # إذا كانت الصورة نظيفة وآمنة: يتم نشرها في القناة مباشرة
+    # إذا كانت الصورة آمنة ونظيفة: انشرها في القناة فوراً
     photo_file_id = message.photo[-1].file_id
     caption_text = message.caption if message.caption else ''
     bot.send_photo(
@@ -83,5 +96,5 @@ def handle_photo(message):
     print(f'Error: {e}')
 
 
-print('Bot is running with auto-delete filter...')
+print('Bot is running with strict direct-upload filter...')
 bot.infinity_polling()
