@@ -1,10 +1,10 @@
 import telebot
 
 # ضع هنا توكن البوت الذي حصلت عليه من BotFather
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+TOKEN = "9059288274:AAEk0m6pgxqR1rTIKrmySri6t4y70sDU4AY"
 
 # ضع هنا معرف قناتك (مثلاً '@my_channel' أو المعرف الرقمي '-100xxxxxxxxxx')
-CHANNEL_ID = "@YourChannelName"
+CHANNEL_ID = "-1003713705463"
 
 bot = telebot.TeleBot(TOKEN)
 
