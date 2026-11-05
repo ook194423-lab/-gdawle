@@ -4,8 +4,9 @@ from flask import Flask
 import telebot
 
 # قراءة التوكن ومعرف القناة من إعدادات السيرفر (Environment Variables)
-TOKEN = os.environ.get('9059288274:AAEk0m6pgxqR1rTIKrmySri6t4y70sDU4AY')
-CHANNEL_ID = os.environ.get('-1003713705463')
+TOKEN = "9059288274:AAEk0m6pgxqR1rTIKrmySri6t4y70sDU4AY"
+CHANNEL_ID = -1003713705463
+
 
 bot = telebot.TeleBot(TOKEN)
 
