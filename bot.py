@@ -31,7 +31,7 @@ bot = telebot.TeleBot(TOKEN)
 
 
 def check_image_safety_by_upload(file_path):
-  """دالة لفحص الصورة عبر تحميلها مباشرة للموقع وتحليلها"""
+  """دالة لفحص الصورة مع طباعة النتيجة في السجلات لمعرفة السبب"""
   try:
     with open(file_path, 'rb') as image_file:
       files = {'media': image_file}
@@ -46,16 +46,20 @@ def check_image_safety_by_upload(file_path):
           data=data,
       )
       output = response.json()
+      print(
+          'API Response:', output
+      )  # ستطبع النتيجة حرفياً في سجلات Render لتراها
 
       if output.get('status') == 'success':
-        # التحقق من نسبة العري أو المحتوى الحساس
         nudity_safe = output.get('nudity', {}).get('safe', 1.0)
-        # إذا كانت نسبة الأمان أقل من 80%، نعتبر الصورة مخالفة وغير آمنة
-        if nudity_safe < 0.8:
+        print(f'Nudity Safe Score: {nudity_safe}')  # طباعة نسبة الأمان
+
+        # إذا كانت نسبة الأمان أقل من 95% (نجعلها صارمة جداً للتجربة)
+        if nudity_safe < 0.95:
           return False
     return True
   except Exception as e:
-    print(f'Error in check: {e}')
+    print(f'Error in check exception: {e}')
     return True
 
 
