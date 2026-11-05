@@ -20,7 +20,7 @@ def run_web():
 Thread(target=run_web).start()
 
 # 2. إعدادات البوت والاتصال
-TOKEN = '9059288274:AAFMYLkHh9rk4EGSpW7v7LBa1rGEncEm3Lg'
+TOKEN = '9059288274:AAEvcvGCouaaJxPF0VoSprcYT5nmp89HE2A'
 CHANNEL_ID = -1003713705463
 
 # مفاتيح حسابك في Sightengine
