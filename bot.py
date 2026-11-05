@@ -22,7 +22,7 @@ Thread(target=run_web).start()
 
 # --- 2. إعدادات بوت التليجرام ---
 TOKEN = "9059288274:AAEk0m6pgxqR1rTIKrmySri6t4y70sDU4AY"
-CHANNEL_ID = -1004336205957
+CHANNEL_ID = -1003713705463
 
 bot = telebot.TeleBot(TOKEN)
 
