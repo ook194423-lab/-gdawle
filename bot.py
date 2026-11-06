@@ -1,8 +1,31 @@
 import os
+import time  # ← هنا
 import requests
 import telebot
 from flask import Flask
 from threading import Thread
+
+# ... باقي الملف كما هو ...
+
+def analyze_image(file_path):
+    start = time.time()  # ← قبل الطلب
+
+    with open(file_path, 'rb') as image_file:
+        response = requests.post(
+            'https://api.sightengine.com/1.0/check.json',
+            files={'media': image_file},
+            data={
+                'models': MODELS,
+                'api_user': API_USER,
+                'api_secret': API_SECRET,
+            },
+            timeout=30,
+        )
+
+    print(f'Sightengine took {time.time() - start:.2f}s')  # ← بعد الطلب
+
+    result = response.json()
+    # ... باقي الدالة كما هو
 
 # 1. السيرفر الوهمي لإبقاء الخدمة حيّة على Render
 app = Flask(__name__)
