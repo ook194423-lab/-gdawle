@@ -46,7 +46,7 @@ missing = [k for k in REQUIRED if not os.environ.get(k)]
 if missing:
     raise SystemExit(f"Missing environment variables: {missing}")
 
-TOKEN = os.environ['9059288274:AAHs2T9yGu32M62yijjU72UBcZbbLIfQRwE']
+TOKEN = os.environ['9059288274:AAETwl6kC8uqNRjDUKY4BVyVUfoxrI5YB8Q']
 CHANNEL_ID = int(os.environ['-1003713705463'])
 API_USER = os.environ['700106778']
 API_SECRET = os.environ['THw6tAtGMmjVg2grjKAoQtKZPiYWcoPT']
