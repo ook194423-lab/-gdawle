@@ -4,7 +4,7 @@ import telebot
 from flask import Flask
 from threading import Thread
 
-# 1. إعداد السيرفر الوهمي للإبقاء على البوت مستيقظاً 24/7 عبر ريندر
+# 1. السيرفر الوهمي
 app = Flask('')
 
 @app.route('/')
@@ -14,109 +14,123 @@ def home():
 def run_web():
     app.run(host='0.0.0.0', port=8080)
 
-# تشغيل السيرفر في خلفية النظام
 Thread(target=run_web, daemon=True).start()
 
-# 2. سحب البيانات الحساسة من متغيرات البيئة (Environment Variables) لأمان تام
+# 2. الإعدادات من Environment Variables في Render
 TOKEN = os.environ.get('9059288274:AAHPa-Q2K11KClD9Jen_NN-RMCHHbth-tN8')
-CHANNEL_ID = int(os.environ.get('-1003713705463'))  # معرف القناة (مثال: -1001234567890)
+CHANNEL_ID = int(os.environ.get('-1003713705463'))
 API_USER = os.environ.get('700106778')
 API_SECRET = os.environ.get('THw6tAtGMmjVg2grjKAoQtKZPiYWcoPT')
 
-# حد الخطورة: أي نسبة عري تتجاوز هذا الرقم (0.5 يعني 50%) ستعتبر الصورة مخالفة وتُحذف فوراً
-UNSAFE_THRESHOLD = 0.5
+# النماذج المطلوبة في طلب واحد
+MODELS = 'nudity-2.0,wad,offensive,gore-2.0,genai,qr-content,text-content'
+
+# حدود الحذف لكل تصنيف (0 إلى 1)
+THRESHOLDS = {
+    'nudity': 0.5,
+    'gore': 0.5,
+    'violence': 0.5,
+    'weapons': 0.6,
+    'alcohol': 0.7,
+    'drugs': 0.6,
+    'hate': 0.5,
+    'ai_generated': 0.9,
+    'text_harm': 0.6,
+}
 
 bot = telebot.TeleBot(TOKEN)
 
-def is_image_safe(file_path):
-    """
-    دالة الفحص الصارمة: 
-    ترجع True فقط إذا أكد الفحص بوضوح أن الصورة نظيفة وآمنة.
-    أي خطأ في الاتصال، أو فشل في الرد، أو شك في المحتوى يرجع False (حظر الحذف فوراً).
-    """
-    try:
-        with open(file_path, 'rb') as image_file:
-            response = requests.post(
-                'https://api.sightengine.com/1.0/check.json',
-                files={'media': image_file},
-                data={
-                    'models': 'nudity-2.0',
-                    'api_user': API_USER,
-                    'api_secret': API_SECRET,
-                },
-                timeout=30,
-            )
+def num(value):
+    """يحوّل القيمة إلى رقم، سواء كانت رقماً مباشراً أو كائناً فيه prob."""
+    if isinstance(value, dict):
+        value = value.get('prob', 0)
+    return float(value) if isinstance(value, (int, float)) else 0.0
 
-        result = response.json()
-        print('Sightengine response:', result) # ستظهر لك نتيجة الفحص كاملة في سجلات Render
+def analyze_image(file_path):
+    """يرجع (True, []) إذا الصورة نظيفة، أو (False, [أسباب]) إذا مخالفة.
+    أي فشل في الفحص يرجع False (مبدأ الحذف عند الشك)."""
+    with open(file_path, 'rb') as image_file:
+        response = requests.post(
+            'https://api.sightengine.com/1.0/check.json',
+            files={'media': image_file},
+            data={
+                'models': MODELS,
+                'api_user': API_USER,
+                'api_secret': API_SECRET,
+            },
+            timeout=30,
+        )
 
-        # التحقق من نجاح عملية الاتصال بالـ API
-        if result.get('status') != 'success':
-            print('Sightengine failed or rejected the request, treating image as unsafe by default.')
-            return False
+    result = response.json()
+    print('Sightengine response:', result)
 
-        # استخراج نسب العري والمحتوى الحساس من الرد
-        nudity = result.get('nudity', {})
-        safe_score = nudity.get('safe', 1.0)
-        sexual_score = max(
+    if result.get('status') != 'success':
+        return False, ['فشل الفحص']
+
+    nudity = result.get('nudity', {})
+    scores = {
+        'nudity': max(
             nudity.get('sexual_activity', 0),
             nudity.get('sexual_display', 0),
             nudity.get('erotica', 0),
-        )
+        ),
+        'gore': num(result.get('gore', {})),
+        'violence': num(result.get('gore', {})),
+        'weapons': num(result.get('weapon', result.get('wad', {}).get('weapon', 0))),
+        'alcohol': num(result.get('alcohol', result.get('wad', {}).get('alcohol', 0))),
+        'drugs': num(result.get('drugs', result.get('wad', {}).get('drugs', 0))),
+        'hate': num(result.get('offensive', {})),
+        'ai_generated': num(result.get('type', {}).get('ai_generated', 0)),
+    }
 
-        print(f'Calculated Scores -> safe={safe_score}, sexual_max={sexual_score}')
+    # النصوص: الشتائم والمحتوى المؤذي في الصورة
+    text = result.get('text', {})
+    scores['text_harm'] = max(
+        num(text.get('profanity', {})),
+        num(text.get('moderation', {})),
+    )
 
-        # إذا تجاوزت نسبة المحتوى غير اللائق الحد المسموح، أو انخفضت نسبة الأمان بشكل كبير
-        if sexual_score >= UNSAFE_THRESHOLD or safe_score < (1 - UNSAFE_THRESHOLD):
-            return False
-            
-        return True
-        
-    except Exception as e:
-        print('Critical error during image analysis (treated as unsafe):', e)
-        return False # في حال حدث خطأ تقني، نعتبر الصورة غير آمنة ونحذفها كإجراء احترازي
+    reasons = [name for name, value in scores.items()
+               if value >= THRESHOLDS.get(name, 1.0)]
+
+    # الباركود وQR: أي نتيجة تعتبر مخالفة حسب سياستك
+    if result.get('qr', {}).get('matches') or result.get('barcode', {}).get('matches'):
+        reasons.append('qr_barcode')
+
+    print('Scores:', scores, 'Reasons:', reasons)
+    return len(reasons) == 0, reasons
 
 @bot.message_handler(content_types=['photo'])
 def handle_photo(message):
     temp_path = f'temp_{message.message_id}.jpg'
-    safe = False
+    safe, reasons = False, ['خطأ غير متوقع']
 
     try:
-        # خطوة أ: جلب مسار الصورة من سيرفرات تليجرام وتنزيلها مؤقتاً
         file_info = bot.get_file(message.photo[-1].file_id)
         data = bot.download_file(file_info.file_path)
         with open(temp_path, 'wb') as f:
             f.write(data)
-            
-        # خطوة ب: تمرير الصورة لدالة الفحص الصارمة
-        safe = is_image_safe(temp_path)
-        
+        safe, reasons = analyze_image(temp_path)
     except Exception as e:
-        print('Error downloading or processing photo:', e)
-        safe = False
-        
+        print('Check error (treated as unsafe):', e)
     finally:
-        # خطوة ج: تنظيف الذاكرة ومسح الملف المؤقت مهما كانت النتيجة
         if os.path.exists(temp_path):
             os.remove(temp_path)
 
-    # خطوة د: القرار النهائي (الحذف أو الإرسال للقناة)
     if not safe:
+        print('Blocked. Reasons:', reasons)
         try:
-            # حذف رسالة المستخدم من المحادثة فوراً لمنع ظهورها أو وصولها لأحد
             bot.delete_message(message.chat.id, message.message_id)
-            print('Successfully deleted unsafe image message.')
+            print('Deleted unsafe image.')
         except Exception as e:
-            print('Failed to delete message. Make sure the bot is an admin with delete permissions:', e)
+            print('Delete failed (check bot admin rights):', e)
         return
 
-    # إذا اجتازت الصورة الفحص بنجاح تام، يتم توجيهها ونشرها في القناة المخصصة
     try:
         bot.send_photo(CHANNEL_ID, message.photo[-1].file_id,
                        caption=message.caption or '')
-        print('Image verified and successfully posted to the channel.')
     except Exception as e:
-        print('Failed to send photo to the channel:', e)
+        print('Send to channel failed:', e)
 
-print("Bot is running with strict security filter...")
+print("Bot is running with multi-category filter...")
 bot.infinity_polling()
