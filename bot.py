@@ -4,7 +4,6 @@ import telebot
 from flask import Flask
 from threading import Thread
 
-# 1. السيرفر الوهمي
 app = Flask('')
 
 @app.route('/')
@@ -12,10 +11,10 @@ def home():
     return "Bot is running!"
 
 def run_web():
-    app.run(host='0.0.0.0', port=8080)
+    # use_reloader=False يمنع تشغيل عمليتين داخل Flask
+    app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 8080)), use_reloader=False)
 
-Thread(target=run_web, daemon=True).start()
-
+Thread(target=run_web).start()
 # 2. الإعدادات من Environment Variables في Render
 TOKEN = os.environ.get('9059288274:AAHPa-Q2K11KClD9Jen_NN-RMCHHbth-tN8')
 CHANNEL_ID = int(os.environ.get('-1003713705463'))
@@ -132,5 +131,10 @@ def handle_photo(message):
     except Exception as e:
         print('Send to channel failed:', e)
 
-print("Bot is running with multi-category filter...")
-bot.infinity_polling()
+if __name__ == '__main__':
+    try:
+        bot.infinity_polling(timeout=20, long_polling_timeout=20)
+    except KeyboardInterrupt:
+        print('Stopped by user.')
+    except Exception as e:
+        print('Polling stopped with error:', e)
